@@ -168,9 +168,6 @@ def tim_san_pham(danh_sach_san_pham, ma_can_tim):
 # 1. Chuẩn bị nháp
 def chuan_bi_sua(danh_sach_san_pham, san_pham_can_sua, thay_doi):
 
-    # Tìm sản phẩm cần sửa
-    san_pham_can_sua = tim_san_pham(danh_sach_san_pham,thay_doi)
-
     # Tạo bản nháp độc lập hoàn toàn
     san_pham_nhap = deepcopy(san_pham_can_sua)
 
