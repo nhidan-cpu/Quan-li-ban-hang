@@ -111,6 +111,16 @@ from nghiep_vu_bao_gia import (
     xac_nhan_luu_mau_bao_gia
 )
 
+from nghiep_vu_ncc import (
+    danh_sach_nha_cung_cap,
+    tao_nha_cung_cap,
+    tim_nha_cung_cap,
+    sua_nha_cung_cap,
+    doi_trang_thai_nha_cung_cap,
+    cap_nhat_tong_giao_dich as cap_nhat_tong_giao_dich_ncc,
+    cap_nhat_cong_no as cap_nhat_cong_no_ncc
+)
+
 
 # ============================================================
 # CHUẨN BỊ DỮ LIỆU TEST
@@ -136,6 +146,7 @@ danh_sach_ton_kho.clear()
 danh_sach_phieu_nhap.clear()
 danh_sach_phieu_ban.clear()
 danh_sach_khach_hang.clear()
+danh_sach_nha_cung_cap.clear()
 
 danh_sach_gia_niem_yet.clear()
 danh_sach_bang_gia_phan_khuc.clear()
@@ -2697,11 +2708,316 @@ assert (
 
 print("TEST 90 PASSED")
 
+# ============================================================
+# TEST 91
+# Tạo nhà cung cấp
+# ============================================================
+
+nha_cung_cap = tao_nha_cung_cap(
+    "Nhà cung cấp test",
+    "0900000001",
+    "HCM",
+    "Nhà cung cấp dùng để test"
+)
+
+assert nha_cung_cap["ma_nha_cung_cap"] == "NCC-0001"
+assert nha_cung_cap["ten_nha_cung_cap"] == "Nhà cung cấp test"
+assert nha_cung_cap["so_dien_thoai"] == "0900000001"
+assert nha_cung_cap["dia_chi"] == "HCM"
+assert nha_cung_cap["ghi_chu"] == "Nhà cung cấp dùng để test"
+
+assert nha_cung_cap["tong_giao_dich"] == 0
+assert nha_cung_cap["cong_no"] == 0
+assert nha_cung_cap["trang_thai"] == "DANG_HOAT_DONG"
+
+# NCC không có field phân khúc
+assert "phan_khuc_nha_cung_cap" not in nha_cung_cap
+assert "phan_khuc_khach_hang" not in nha_cung_cap
+
+print("TEST 91 PASSED")
+
+
+# ============================================================
+# TEST 92
+# Tìm nhà cung cấp theo mã
+# ============================================================
+
+nha_cung_cap_tim_duoc = tim_nha_cung_cap(
+    "NCC-0001"
+)
+
+assert nha_cung_cap_tim_duoc is nha_cung_cap
+
+assert (
+    tim_nha_cung_cap("NCC-9999")
+    is None
+)
+
+print("TEST 92 PASSED")
+
+
+# ============================================================
+# TEST 93
+# Sửa thông tin nhà cung cấp
+# ============================================================
+
+nha_cung_cap_sua = sua_nha_cung_cap(
+    "NCC-0001",
+    ten_nha_cung_cap="Nhà cung cấp test mới",
+    so_dien_thoai="0911111111",
+    dia_chi="Hà Nội",
+    ghi_chu="Đã cập nhật"
+)
+
+assert (
+    nha_cung_cap_sua["ma_nha_cung_cap"]
+    == "NCC-0001"
+)
+
+assert (
+    nha_cung_cap_sua["ten_nha_cung_cap"]
+    == "Nhà cung cấp test mới"
+)
+
+assert (
+    nha_cung_cap_sua["so_dien_thoai"]
+    == "0911111111"
+)
+
+assert (
+    nha_cung_cap_sua["dia_chi"]
+    == "Hà Nội"
+)
+
+assert (
+    nha_cung_cap_sua["ghi_chu"]
+    == "Đã cập nhật"
+)
+
+# Thông tin giao dịch không bị thay đổi khi sửa thông tin
+assert nha_cung_cap_sua["tong_giao_dich"] == 0
+assert nha_cung_cap_sua["cong_no"] == 0
+
+print("TEST 93 PASSED")
+
+
+# ============================================================
+# TEST 94
+# Cập nhật tổng giao dịch
+# ============================================================
+
+cap_nhat_tong_giao_dich_ncc(
+    "NCC-0001",
+    3_000_000
+)
+
+assert (
+    nha_cung_cap["tong_giao_dich"]
+    == 3_000_000
+)
+
+
+cap_nhat_tong_giao_dich_ncc(
+    "NCC-0001",
+    -1_000_000
+)
+
+assert (
+    nha_cung_cap["tong_giao_dich"]
+    == 2_000_000
+)
+
+
+cap_nhat_tong_giao_dich_ncc(
+    "NCC-0001",
+    500_000
+)
+
+assert (
+    nha_cung_cap["tong_giao_dich"]
+    == 2_500_000
+)
+
+
+cap_nhat_tong_giao_dich_ncc(
+    "NCC-0001",
+    -2_500_000
+)
+
+assert (
+    nha_cung_cap["tong_giao_dich"]
+    == 0
+)
+
+print("TEST 94 PASSED")
+
+
+# ============================================================
+# TEST 95
+# Không cho tổng giao dịch nhỏ hơn 0
+# ============================================================
+
+try:
+    cap_nhat_tong_giao_dich_ncc(
+        "NCC-0001",
+        -1
+    )
+    assert False
+except ValueError:
+    pass
+
+assert (
+    nha_cung_cap["tong_giao_dich"]
+    == 0
+)
+
+print("TEST 95 PASSED")
+
+
+# ============================================================
+# TEST 96
+# Cập nhật công nợ
+# ============================================================
+
+cap_nhat_cong_no_ncc(
+    "NCC-0001",
+    2_000_000
+)
+
+assert (
+    nha_cung_cap["cong_no"]
+    == 2_000_000
+)
+
+
+cap_nhat_cong_no_ncc(
+    "NCC-0001",
+    -500_000
+)
+
+assert (
+    nha_cung_cap["cong_no"]
+    == 1_500_000
+)
+
+print("TEST 96 PASSED")
+
+
+# ============================================================
+# TEST 97
+# Không cho công nợ nhỏ hơn 0
+# ============================================================
+
+try:
+    cap_nhat_cong_no_ncc(
+        "NCC-0001",
+        -2_000_000
+    )
+    assert False
+except ValueError:
+    pass
+
+assert (
+    nha_cung_cap["cong_no"]
+    == 1_500_000
+)
+
+print("TEST 97 PASSED")
+
+
+# ============================================================
+# TEST 98
+# Thay đổi trạng thái nhà cung cấp
+# ============================================================
+
+doi_trang_thai_nha_cung_cap(
+    "NCC-0001",
+    "NGUNG_HOAT_DONG"
+)
+
+assert (
+    nha_cung_cap["trang_thai"]
+    == "NGUNG_HOAT_DONG"
+)
+
+
+doi_trang_thai_nha_cung_cap(
+    "NCC-0001",
+    "DANG_HOAT_DONG"
+)
+
+assert (
+    nha_cung_cap["trang_thai"]
+    == "DANG_HOAT_DONG"
+)
+
+# Dữ liệu giao dịch và công nợ không bị thay đổi
+assert nha_cung_cap["tong_giao_dich"] == 0
+assert nha_cung_cap["cong_no"] == 1_500_000
+
+print("TEST 98 PASSED")
+
+
+# ============================================================
+# TEST 99
+# Không cho trạng thái không hợp lệ
+# ============================================================
+
+try:
+    doi_trang_thai_nha_cung_cap(
+        "NCC-0001",
+        "TRANG_THAI_KHONG_HOP_LE"
+    )
+    assert False
+except ValueError:
+    pass
+
+assert (
+    nha_cung_cap["trang_thai"]
+    == "DANG_HOAT_DONG"
+)
+
+print("TEST 99 PASSED")
+
+
+# ============================================================
+# TEST 100
+# Tạo nhà cung cấp thứ hai và kiểm tra sinh mã tự động
+# ============================================================
+
+nha_cung_cap_2 = tao_nha_cung_cap(
+    "Nhà cung cấp test 2"
+)
+
+assert (
+    nha_cung_cap_2["ma_nha_cung_cap"]
+    == "NCC-0002"
+)
+
+assert (
+    len(danh_sach_nha_cung_cap)
+    == 2
+)
+
+assert (
+    tim_nha_cung_cap("NCC-0002")
+    is nha_cung_cap_2
+)
+
+# Hai nhà cung cấp phải có mã khác nhau
+assert (
+    nha_cung_cap["ma_nha_cung_cap"]
+    != nha_cung_cap_2["ma_nha_cung_cap"]
+)
+
+print("TEST 100 PASSED")
+
 
 # ============================================================
 # KẾT QUẢ
 # ============================================================
 
-print("=" * 60)
-print("TẤT CẢ TEST 1-90 ĐỀU PASSED")
-print("=" * 60)
+print("=" * 40)
+print("TEST 91-100 NHÀ CUNG CẤP PASSED")
+print("TẤT CẢ 100 TEST ĐỀU PASSED")
+print("=" * 40)
