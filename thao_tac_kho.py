@@ -7,7 +7,6 @@ ton_kho = {
     "dvt_chinh": "",
     "so_luong_ton": 0,
     "gia_tri_ton": 0,
-    "gia_von_binh_quan": 0,
 }
 
 
@@ -25,7 +24,6 @@ def tao_ton_kho(ma_kho, san_pham):
         "dvt_chinh": san_pham["dvt_chinh"],
         "so_luong_ton": 0,
         "gia_tri_ton": 0,
-        "gia_von_binh_quan": 0,
     }
 
 
@@ -44,7 +42,6 @@ def khoi_tao_danh_sach_ton_kho(
                 kho["ma_kho"],
                 san_pham
             )
-
             danh_sach_ton_kho.append(ton_moi)
 
 
@@ -88,22 +85,14 @@ def tim_kho_theo_ma(
     return None
 
 
-# Cập nhật một dòng tồn kho sau khi nhập hàng
+# Cập nhật số lượng và giá trị tồn
 def cap_nhat_ton_kho_tu_chi_tiet(
     ton_kho,
-    so_luong_nhap,
-    gia_tri_nhap
+    so_luong_thay_doi,
+    gia_tri_thay_doi
 ):
-    ton_kho["so_luong_ton"] += so_luong_nhap
-    ton_kho["gia_tri_ton"] += gia_tri_nhap
-
-    if ton_kho["so_luong_ton"] > 0:
-        ton_kho["gia_von_binh_quan"] = (
-            ton_kho["gia_tri_ton"]
-            / ton_kho["so_luong_ton"]
-        )
-    else:
-        ton_kho["gia_von_binh_quan"] = 0
+    ton_kho["so_luong_ton"] += so_luong_thay_doi
+    ton_kho["gia_tri_ton"] += gia_tri_thay_doi
 
 
 # Áp dụng một phiếu nhập vào tồn kho
@@ -181,21 +170,11 @@ def hoan_tac_phieu_nhap_vao_kho(
                 f"kho {ma_kho}, sản phẩm {ma_san_pham}"
             )
 
-        ton["so_luong_ton"] -= (
-            chi_tiet["so_luong_quy_doi"]
+        cap_nhat_ton_kho_tu_chi_tiet(
+            ton,
+            -chi_tiet["so_luong_quy_doi"],
+            -chi_tiet["thanh_tien_tung_dong"]
         )
-
-        ton["gia_tri_ton"] -= (
-            chi_tiet["thanh_tien_tung_dong"]
-        )
-
-        if ton["so_luong_ton"] > 0:
-            ton["gia_von_binh_quan"] = (
-                ton["gia_tri_ton"]
-                / ton["so_luong_ton"]
-            )
-        else:
-            ton["gia_von_binh_quan"] = 0
 
 
 
