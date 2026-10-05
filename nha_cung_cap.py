@@ -7,7 +7,6 @@ mau_nha_cung_cap = {
     "so_dien_thoai": "",
     "dia_chi": "",
     "tong_giao_dich": 0,
-    "cong_no": 0,
     "trang_thai": "DANG_HOAT_DONG",
     "ghi_chu": ""
 }
@@ -161,30 +160,5 @@ def cap_nhat_tong_giao_dich(
     nha_cung_cap["tong_giao_dich"] = (
         tong_giao_dich_moi
     )
-
-    return nha_cung_cap
-
-
-# Cập nhật công nợ
-def cap_nhat_cong_no(
-    ma_nha_cung_cap,
-    so_tien_thay_doi
-):
-    nha_cung_cap = tim_nha_cung_cap(ma_nha_cung_cap)
-
-    if nha_cung_cap is None:
-        raise ValueError("Không tìm thấy nhà cung cấp.")
-
-    cong_no_moi = (
-        nha_cung_cap["cong_no"]
-        + so_tien_thay_doi
-    )
-
-    if cong_no_moi < 0:
-        raise ValueError(
-            "Công nợ không thể nhỏ hơn 0."
-        )
-
-    nha_cung_cap["cong_no"] = cong_no_moi
 
     return nha_cung_cap

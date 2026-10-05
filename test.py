@@ -1,14 +1,14 @@
-from thao_tac_danh_sach_san_pham import (
+from san_pham import (
     tao_san_pham
 )
 
-from thao_tac_kho import (
+from kho import (
     danh_sach_ton_kho,
     khoi_tao_danh_sach_ton_kho,
     tim_ton_kho
 )
 
-from thao_tac_nhap_hang import (
+from nhap_hang import (
     danh_sach_phieu_nhap,
     tao_phieu_nhap,
     tao_chi_tiet_nhap,
@@ -19,7 +19,7 @@ from thao_tac_nhap_hang import (
     xac_nhan_luu
 )
 
-from thao_tac_ban_hang import (
+from ban_hang import (
     danh_sach_phieu_ban,
     danh_sach_phieu_gntt,
 
@@ -52,7 +52,7 @@ from thao_tac_ban_hang import (
     xac_nhan_luu_phieu_gntt
 )
 
-from nghiep_vu_khach_hang import (
+from khach_hang import (
     danh_sach_khach_hang,
     tao_khach_hang,
     tim_khach_hang,
@@ -62,7 +62,7 @@ from nghiep_vu_khach_hang import (
     cap_nhat_cong_no
 )
 
-from nghiep_vu_gia import (
+from gia import (
     danh_sach_gia_niem_yet,
     danh_sach_bang_gia_phan_khuc,
 
@@ -95,7 +95,7 @@ from nghiep_vu_gia import (
     ap_dung_cau_hinh_tinh_gia
 )
 
-from nghiep_vu_bao_gia import (
+from bao_gia import (
     danh_sach_mau_bao_gia,
     tao_mau_bao_gia,
     tim_mau_bao_gia,
@@ -111,7 +111,7 @@ from nghiep_vu_bao_gia import (
     xac_nhan_luu_mau_bao_gia
 )
 
-from nghiep_vu_ncc import (
+from nha_cung_cap import (
     danh_sach_nha_cung_cap,
     tao_nha_cung_cap,
     tim_nha_cung_cap,

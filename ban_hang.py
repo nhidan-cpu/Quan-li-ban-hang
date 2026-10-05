@@ -11,12 +11,21 @@ from thao_tac_kho import (
     cap_nhat_ton_kho_tu_chi_tiet
 )
 
+from khach_hang import (
+    tim_khach_hang,
+    cap_nhat_tong_giao_dich
+)
+
+from cong_no import (
+    phat_sinh_cong_no_tu_gntt,
+    hoan_tac_cong_no_tu_gntt
+)
+
 
 # ============================================================
 # 1. CẤU TRÚC DỮ LIỆU
 # ============================================================
 
-# Cấu trúc phiếu bán
 phieu_ban = {
     "ma_phieu": "",
     "thoi_gian_tao": "",
@@ -27,7 +36,6 @@ phieu_ban = {
 }
 
 
-# Cấu trúc chi tiết phiếu bán
 chi_tiet_ban = {
     "stt": 0,
     "ma_kho": "",
@@ -37,30 +45,29 @@ chi_tiet_ban = {
     "so_luong": 0,
     "he_so_quy_doi": 0,
     "so_luong_quy_doi": 0,
-
     "don_gia": 0,
     "loai_gia": "",
     "ck": 0,
     "don_gia_sau_ck": 0,
     "thanh_tien_tung_dong": 0,
-
     "don_gia_von": 0,
     "thanh_tien_von": 0
 }
 
 
-# Danh sách phiếu bán
 danh_sach_phieu_gntt = []
 
-# Giữ tên cũ để không làm hỏng code đang gọi module bán hàng.
+# Tên cũ dùng cho các đoạn code đang gọi module bán hàng.
 danh_sach_phieu_ban = danh_sach_phieu_gntt
 
 
 # ============================================================
-# TRẠNG THÁI BẢN NHÁP
+# 2. TRẠNG THÁI BẢN NHÁP
 # ============================================================
 
-# Đánh dấu phiếu đã có thay đổi nhưng chưa lưu.
+_KHONG_THAY_DOI = object()
+
+
 def danh_dau_phieu_da_thay_doi(phieu):
 
     phieu["_da_thay_doi"] = True
@@ -68,13 +75,11 @@ def danh_dau_phieu_da_thay_doi(phieu):
     return phieu
 
 
-# Kiểm tra phiếu có thay đổi chưa lưu hay không.
 def phieu_co_thay_doi_chua_luu(phieu):
 
     return phieu.get("_da_thay_doi", False)
 
 
-# Đặt lại trạng thái bản nháp sau khi lưu thành công.
 def dat_lai_trang_thai_phieu(phieu):
 
     phieu["_da_thay_doi"] = False
@@ -82,8 +87,6 @@ def dat_lai_trang_thai_phieu(phieu):
     return phieu
 
 
-# Tạo bản dữ liệu để lưu vào danh sách phiếu,
-# không lưu các trường trạng thái chỉ phục vụ User Form.
 def tao_ban_luu_phieu(phieu):
 
     ban_luu = deepcopy(phieu)
@@ -95,33 +98,62 @@ def tao_ban_luu_phieu(phieu):
 
 
 # ============================================================
-# 2. TẠO PHIẾU BÁN
+# 3. SINH MÃ GNTT
 # ============================================================
 
-# Tạo phiếu bán mới
-def tao_phieu_ban(ma_phieu):
+def sinh_ma_phieu_gntt():
+
+    ngay_hien_tai = datetime.now().strftime("%d%m%y")
+
+    tien_to = f"BH{ngay_hien_tai}-"
+    so_lon_nhat = 0
+
+    for phieu in danh_sach_phieu_gntt:
+
+        ma_phieu = phieu.get("ma_phieu")
+
+        if not isinstance(ma_phieu, str):
+            continue
+
+        if not ma_phieu.startswith(tien_to):
+            continue
+
+        phan_so = ma_phieu[len(tien_to):]
+
+        if phan_so.isdigit():
+            so_lon_nhat = max(
+                so_lon_nhat,
+                int(phan_so)
+            )
+
+    return f"{tien_to}{so_lon_nhat + 1:04d}"
+
+
+# ============================================================
+# 4. TẠO PHIẾU BÁN
+# ============================================================
+
+def tao_phieu_ban(ma_phieu=None):
+
+    if ma_phieu is None:
+        ma_phieu = sinh_ma_phieu_gntt()
 
     return {
         "ma_phieu": ma_phieu,
         "thoi_gian_tao": datetime.now(),
-        "ma_khach_hang": "",
-        "ten_khach_hang": "",
+        "ma_khach_hang": None,
+        "ten_khach_hang": None,
         "ghi_chu": "",
-
         "tong_thanh_tien": 0,
         "tong_thanh_tien_von": 0,
         "loi_nhuan": 0,
         "ty_suat": 0,
-
         "chi_tiet": [],
-
-        # Trạng thái chỉ dùng cho bản nháp/User Form.
         "_da_load": False,
         "_da_thay_doi": False
     }
 
 
-# Tạo chi tiết phiếu bán
 def tao_chi_tiet_ban(
     san_pham,
     ma_kho,
@@ -134,7 +166,6 @@ def tao_chi_tiet_ban(
     ghi_chu=""
 ):
 
-    # Lấy hệ số quy đổi
     he_so_quy_doi = lay_he_so_quy_doi(
         san_pham,
         dvt_ban
@@ -143,26 +174,21 @@ def tao_chi_tiet_ban(
     if he_so_quy_doi is None:
 
         raise ValueError(
-            f"ĐVT '{dvt_ban}' "
-            f"không tồn tại trong sản phẩm"
+            f"ĐVT '{dvt_ban}' không tồn tại trong sản phẩm"
         )
 
-    # Kiểm tra số lượng
     if so_luong <= 0:
 
         raise ValueError(
             "Số lượng bán phải lớn hơn 0"
         )
 
-    # Tính số lượng theo DVT chính
     so_luong_quy_doi = (
         so_luong * he_so_quy_doi
     )
 
-    # Xử lý loại giá
     if loai_gia == "CHIA THANG":
 
-        # Đơn giá và CK không sử dụng
         don_gia = 0
         ck = 0
 
@@ -186,7 +212,6 @@ def tao_chi_tiet_ban(
                 "Chiết khấu phải từ 0 đến 100"
             )
 
-        # Tính đơn giá sau chiết khấu
         don_gia_sau_ck = (
             don_gia * (1 - ck / 100)
         )
@@ -197,7 +222,6 @@ def tao_chi_tiet_ban(
             f"Loại giá không hợp lệ: {loai_gia}"
         )
 
-    # Tính thành tiền
     thanh_tien_tung_dong = (
         so_luong * don_gia_sau_ck
     )
@@ -211,29 +235,26 @@ def tao_chi_tiet_ban(
         "so_luong": so_luong,
         "he_so_quy_doi": he_so_quy_doi,
         "so_luong_quy_doi": so_luong_quy_doi,
-
         "don_gia": don_gia,
         "loai_gia": loai_gia,
         "ck": ck,
         "don_gia_sau_ck": don_gia_sau_ck,
         "thanh_tien_tung_dong": thanh_tien_tung_dong,
-
         "don_gia_von": 0,
-        "thanh_tien_von": 0
+        "thanh_tien_von": 0,
+        "ghi_chu": ghi_chu
     }
 
 
 # ============================================================
-# 3. TÍNH TOÁN CHI TIẾT
+# 5. TÍNH TOÁN CHI TIẾT
 # ============================================================
 
-# Tính lại một dòng chi tiết phiếu bán
 def tinh_lai_chi_tiet_ban(
     san_pham,
     chi_tiet
 ):
 
-    # Lấy lại hệ số quy đổi
     he_so_quy_doi = lay_he_so_quy_doi(
         san_pham,
         chi_tiet["dvt_ban"]
@@ -242,30 +263,24 @@ def tinh_lai_chi_tiet_ban(
     if he_so_quy_doi is None:
 
         raise ValueError(
-            f"ĐVT '{chi_tiet['dvt_ban']}' "
-            f"không tồn tại trong sản phẩm"
+            f"ĐVT '{chi_tiet['dvt_ban']}' không tồn tại trong sản phẩm"
         )
 
-    # Cập nhật hệ số quy đổi
     chi_tiet["he_so_quy_doi"] = he_so_quy_doi
 
-    # Tính số lượng theo DVT chính
-    chi_tiet["so_luong_quy_doi"] = (
-        chi_tiet["so_luong"]
-        * he_so_quy_doi
-    )
-
-    # Kiểm tra số lượng
     if chi_tiet["so_luong"] <= 0:
 
         raise ValueError(
             "Số lượng bán phải lớn hơn 0"
         )
 
-    # Xử lý loại giá
+    chi_tiet["so_luong_quy_doi"] = (
+        chi_tiet["so_luong"]
+        * he_so_quy_doi
+    )
+
     if chi_tiet["loai_gia"] == "CHIA THANG":
 
-        # Đơn giá và CK không sử dụng
         chi_tiet["don_gia"] = 0
         chi_tiet["ck"] = 0
 
@@ -292,7 +307,6 @@ def tinh_lai_chi_tiet_ban(
                 "Chiết khấu phải từ 0 đến 100"
             )
 
-        # Tính đơn giá sau chiết khấu
         chi_tiet["don_gia_sau_ck"] = (
             chi_tiet["don_gia"]
             * (1 - chi_tiet["ck"] / 100)
@@ -305,7 +319,6 @@ def tinh_lai_chi_tiet_ban(
             f"{chi_tiet['loai_gia']}"
         )
 
-    # Tính thành tiền
     chi_tiet["thanh_tien_tung_dong"] = (
         chi_tiet["so_luong"]
         * chi_tiet["don_gia_sau_ck"]
@@ -314,7 +327,6 @@ def tinh_lai_chi_tiet_ban(
     return chi_tiet
 
 
-# Tính tổng thành tiền
 def tinh_tong_thanh_tien(phieu):
 
     return sum(
@@ -323,24 +335,24 @@ def tinh_tong_thanh_tien(phieu):
     )
 
 
-# Tính tổng giá vốn
 def tinh_tong_thanh_tien_von(phieu):
+
     return sum(
         chi_tiet.get("thanh_tien_von", 0)
         for chi_tiet in phieu["chi_tiet"]
     )
 
 
-# Tính lợi nhuận
 def tinh_loi_nhuan(phieu):
+
     return (
         phieu["tong_thanh_tien"]
         - phieu["tong_thanh_tien_von"]
     )
 
 
-# Tính tỷ suất lợi nhuận
 def tinh_ty_suat(phieu):
+
     if phieu["tong_thanh_tien"] == 0:
         return 0
 
@@ -351,7 +363,6 @@ def tinh_ty_suat(phieu):
     )
 
 
-# Cập nhật tổng số liệu của phiếu
 def cap_nhat_tong_thanh_tien(phieu):
 
     phieu["tong_thanh_tien"] = (
@@ -373,7 +384,6 @@ def cap_nhat_tong_thanh_tien(phieu):
     return phieu
 
 
-# Tính lại toàn bộ phiếu bán
 def cap_nhat_tinh_toan_phieu_ban(
     danh_sach_san_pham,
     phieu
@@ -381,7 +391,6 @@ def cap_nhat_tinh_toan_phieu_ban(
 
     for chi_tiet in phieu["chi_tiet"]:
 
-        # Tìm sản phẩm
         san_pham = tim_san_pham(
             danh_sach_san_pham,
             chi_tiet["ma_san_pham"]
@@ -394,39 +403,33 @@ def cap_nhat_tinh_toan_phieu_ban(
                 f"'{chi_tiet['ma_san_pham']}'"
             )
 
-        # Cập nhật tên sản phẩm
         chi_tiet["ten_san_pham"] = (
             san_pham["ten_san_pham"]
         )
 
-        # Đảm bảo dòng chi tiết luôn có ghi chú
         if "ghi_chu" not in chi_tiet:
             chi_tiet["ghi_chu"] = ""
 
-        # Tính lại chi tiết
         tinh_lai_chi_tiet_ban(
             san_pham,
             chi_tiet
         )
 
-    # Cập nhật tổng
     cap_nhat_tong_thanh_tien(phieu)
 
     return phieu
 
 
 # ============================================================
-# 4. THÊM CHI TIẾT VÀO PHIẾU
+# 6. THÊM CHI TIẾT VÀO PHIẾU
 # ============================================================
 
-# Thêm một dòng vào phiếu bán
 def them_chi_tiet_vao_phieu_ban(
     danh_sach_san_pham,
     phieu,
     chi_tiet
 ):
 
-    # Kiểm tra sản phẩm
     san_pham = tim_san_pham(
         danh_sach_san_pham,
         chi_tiet["ma_san_pham"]
@@ -439,23 +442,19 @@ def them_chi_tiet_vao_phieu_ban(
             f"'{chi_tiet['ma_san_pham']}'"
         )
 
-    # Tính lại chi tiết
     tinh_lai_chi_tiet_ban(
         san_pham,
         chi_tiet
     )
 
-    # Gán STT
     chi_tiet["stt"] = (
         len(phieu["chi_tiet"]) + 1
     )
 
-    # Thêm dòng
     phieu["chi_tiet"].append(
         chi_tiet
     )
 
-    # Cập nhật tổng
     cap_nhat_tong_thanh_tien(phieu)
 
     danh_dau_phieu_da_thay_doi(phieu)
@@ -464,13 +463,11 @@ def them_chi_tiet_vao_phieu_ban(
 
 
 # ============================================================
-# 5. KIỂM TRA DỮ LIỆU PHIẾU
+# 7. KIỂM TRA DỮ LIỆU
 # ============================================================
 
-# Kiểm tra dữ liệu cơ bản
 def kiem_tra_du_lieu_phieu_ban(phieu):
 
-    # Phiếu phải có ít nhất một dòng
     if not phieu["chi_tiet"]:
 
         print(
@@ -480,7 +477,6 @@ def kiem_tra_du_lieu_phieu_ban(phieu):
 
         return False
 
-    # Kiểm tra từng dòng
     for chi_tiet in phieu["chi_tiet"]:
 
         if not chi_tiet["ma_kho"]:
@@ -502,13 +498,38 @@ def kiem_tra_du_lieu_phieu_ban(phieu):
 
             return False
 
+    if phieu["ma_khach_hang"] is None:
+        return True
+
+    if not isinstance(
+        phieu["ma_khach_hang"],
+        str
+    ):
+
+        raise ValueError(
+            "Khách hàng phải là mã khách hàng "
+            "hoặc để trống."
+        )
+
+    if not phieu["ma_khach_hang"].strip():
+
+        phieu["ma_khach_hang"] = None
+
+        return True
+
+    if tim_khach_hang(
+        phieu["ma_khach_hang"]
+    ) is None:
+
+        raise ValueError(
+            f"Không tìm thấy khách hàng "
+            f"'{phieu['ma_khach_hang']}'."
+        )
+
     return True
 
 
-# Kiểm tra mã phiếu đã tồn tại chưa
-def kiem_tra_trung_ma_phieu(
-    ma_phieu
-):
+def kiem_tra_trung_ma_phieu(ma_phieu):
 
     for phieu in danh_sach_phieu_ban:
 
@@ -520,13 +541,10 @@ def kiem_tra_trung_ma_phieu(
 
 
 # ============================================================
-# 6. KIỂM TRA TỒN KHO
+# 8. KIỂM TRA TỒN KHO
 # ============================================================
 
-# Gom số lượng cần xuất theo kho và sản phẩm
-def tong_hop_so_luong_xuat(
-    phieu
-):
+def tong_hop_so_luong_xuat(phieu):
 
     tong_hop = {}
 
@@ -548,7 +566,6 @@ def tong_hop_so_luong_xuat(
     return tong_hop
 
 
-# Kiểm tra tồn kho
 def kiem_tra_ton_kho_phieu_ban(
     danh_sach_ton_kho,
     phieu
@@ -563,7 +580,6 @@ def kiem_tra_ton_kho_phieu_ban(
         so_luong_can_xuat
     ) in tong_hop.items():
 
-        # Tìm tồn kho
         ton = tim_ton_kho(
             danh_sach_ton_kho,
             ma_kho,
@@ -574,12 +590,10 @@ def kiem_tra_ton_kho_phieu_ban(
 
             raise ValueError(
                 f"Không tìm thấy tồn kho "
-                f"của sản phẩm "
-                f"'{ma_san_pham}' "
+                f"của sản phẩm '{ma_san_pham}' "
                 f"tại kho '{ma_kho}'"
             )
 
-        # Kiểm tra số lượng
         if (
             ton["so_luong_ton"]
             < so_luong_can_xuat
@@ -597,22 +611,20 @@ def kiem_tra_ton_kho_phieu_ban(
 
 
 # ============================================================
-# 7. CẬP NHẬT TỒN KHO
+# 9. CẬP NHẬT TỒN KHO
 # ============================================================
 
-# Áp dụng phiếu bán vào kho
 def ap_dung_phieu_ban_vao_kho(
     danh_sach_ton_kho,
-    phieu
+    phieu,
+    dung_gia_von_da_luu=False
 ):
 
-    # Kiểm tra tồn trước
     kiem_tra_ton_kho_phieu_ban(
         danh_sach_ton_kho,
         phieu
     )
 
-    # Xuất từng dòng
     for chi_tiet in phieu["chi_tiet"]:
 
         ton = tim_ton_kho(
@@ -621,9 +633,14 @@ def ap_dung_phieu_ban_vao_kho(
             chi_tiet["ma_san_pham"]
         )
 
-        # Lấy giá trị tồn theo tỷ lệ
-        if ton["so_luong_ton"] > 0:
+        if dung_gia_von_da_luu and "thanh_tien_von" in chi_tiet:
 
+            # Dùng lại đúng giá vốn lịch sử của lần xuất cũ.
+            gia_tri_xuat = chi_tiet["thanh_tien_von"]
+
+        elif ton["so_luong_ton"] > 0:
+
+            # Phiếu bán mới → tính giá vốn theo tồn hiện tại.
             gia_tri_xuat = (
                 chi_tiet["so_luong_quy_doi"]
                 * ton["gia_tri_ton"]
@@ -634,7 +651,6 @@ def ap_dung_phieu_ban_vao_kho(
 
             gia_tri_xuat = 0
 
-        # Trừ tồn
         cap_nhat_ton_kho_tu_chi_tiet(
             ton,
             -chi_tiet["so_luong_quy_doi"],
@@ -642,7 +658,6 @@ def ap_dung_phieu_ban_vao_kho(
         )
 
 
-# Hoàn tác phiếu bán khỏi kho
 def hoan_tac_phieu_ban_vao_kho(
     danh_sach_ton_kho,
     phieu
@@ -662,19 +677,24 @@ def hoan_tac_phieu_ban_vao_kho(
                 f"Không tìm thấy tồn kho "
                 f"của sản phẩm "
                 f"'{chi_tiet['ma_san_pham']}' "
-                f"tại kho "
-                f"'{chi_tiet['ma_kho']}'"
+                f"tại kho '{chi_tiet['ma_kho']}'"
             )
 
-        # Hoàn lại số lượng
         so_luong_hoan = (
             chi_tiet["so_luong_quy_doi"]
         )
 
-        # V1 hoàn tác theo giá trị tồn hiện tại.
-        # Cơ chế giá vốn lịch sử sẽ xây sau.
-        if ton["so_luong_ton"] > 0:
+        # Nếu phiếu đã lưu giá vốn lịch sử, hoàn tác đúng
+        # giá trị vốn của chính lần xuất hàng đó.
+        # Đây là giá trị cần dùng khi sửa phiếu sau khi
+        # kho đã phát sinh thêm các giao dịch khác.
+        if "thanh_tien_von" in chi_tiet:
 
+            gia_tri_hoan = chi_tiet["thanh_tien_von"]
+
+        elif ton["so_luong_ton"] > 0:
+
+            # Tương thích với dữ liệu cũ chưa có giá vốn lịch sử.
             gia_tri_hoan = (
                 so_luong_hoan
                 * ton["gia_tri_ton"]
@@ -693,12 +713,9 @@ def hoan_tac_phieu_ban_vao_kho(
 
 
 # ============================================================
-# 8. LƯU PHIẾU BÁN
+# 10. LƯU PHIẾU BÁN
 # ============================================================
 
-# Lưu phiếu bán.
-# Nếu mã chưa tồn tại: lưu mới.
-# Nếu mã đã tồn tại: cập nhật toàn bộ phiếu.
 def luu_phieu_ban(
     danh_sach_san_pham,
     danh_sach_ton_kho,
@@ -706,13 +723,9 @@ def luu_phieu_ban(
     ham_tinh_gia_von=None
 ):
 
-    # Kiểm tra dữ liệu trước khi thay đổi dữ liệu chính.
-    if not kiem_tra_du_lieu_phieu_ban(
-        phieu
-    ):
+    if not kiem_tra_du_lieu_phieu_ban(phieu):
         return False
 
-    # Mã chưa tồn tại → lưu phiếu mới.
     if not kiem_tra_trung_ma_phieu(
         phieu["ma_phieu"]
     ):
@@ -727,8 +740,8 @@ def luu_phieu_ban(
             phieu
         )
 
-        # Chốt giá vốn nếu được cung cấp.
         if ham_tinh_gia_von is not None:
+
             ham_tinh_gia_von(
                 phieu,
                 danh_sach_ton_kho
@@ -743,14 +756,43 @@ def luu_phieu_ban(
             phieu
         )
 
-        # Lưu bản nghiệp vụ, không lưu trạng thái User Form.
-        ban_luu = tao_ban_luu_phieu(phieu)
+        try:
+
+            phat_sinh_cong_no_tu_gntt(
+                phieu
+            )
+
+            if phieu["ma_khach_hang"] is not None:
+
+                cap_nhat_tong_giao_dich(
+                    phieu["ma_khach_hang"],
+                    phieu["tong_thanh_tien"]
+                )
+
+        except Exception:
+
+            hoan_tac_cong_no_tu_gntt(
+                phieu
+            )
+
+            hoan_tac_phieu_ban_vao_kho(
+                danh_sach_ton_kho,
+                phieu
+            )
+
+            raise
+
+        ban_luu = tao_ban_luu_phieu(
+            phieu
+        )
 
         danh_sach_phieu_ban.append(
             ban_luu
         )
 
-        dat_lai_trang_thai_phieu(phieu)
+        dat_lai_trang_thai_phieu(
+            phieu
+        )
 
         print(
             "Lưu phiếu bán thành công"
@@ -758,7 +800,6 @@ def luu_phieu_ban(
 
         return True
 
-    # Mã đã tồn tại → cập nhật toàn bộ phiếu.
     return xac_nhan_luu_phieu_ban(
         danh_sach_san_pham,
         danh_sach_ton_kho,
@@ -768,13 +809,10 @@ def luu_phieu_ban(
 
 
 # ============================================================
-# 9. TÌM PHIẾU BÁN
+# 11. TÌM / LOAD PHIẾU BÁN
 # ============================================================
 
-# Tìm phiếu bán theo mã
-def tim_phieu_ban(
-    ma_phieu
-):
+def tim_phieu_ban(ma_phieu):
 
     for phieu in danh_sach_phieu_ban:
 
@@ -785,7 +823,6 @@ def tim_phieu_ban(
     return None
 
 
-# Tải phiếu bán đã lưu thành một bản nháp để chỉnh sửa.
 def load_phieu_ban(ma_phieu):
 
     phieu_can_load = tim_phieu_ban(
@@ -799,7 +836,6 @@ def load_phieu_ban(ma_phieu):
         phieu_can_load
     )
 
-    # Đã load nhưng chưa có thay đổi.
     phieu_nhap["_da_load"] = True
     phieu_nhap["_da_thay_doi"] = False
 
@@ -807,13 +843,10 @@ def load_phieu_ban(ma_phieu):
 
 
 # ============================================================
-# 10. SỬA PHIẾU BÁN
+# 12. SỬA PHIẾU BÁN
 # ============================================================
 
-# Tạo bản nháp phiếu bán cần sửa
-def sua_phieu_ban(
-    phieu_can_sua
-):
+def sua_phieu_ban(phieu_can_sua):
 
     phieu_nhap = deepcopy(
         phieu_can_sua
@@ -825,11 +858,10 @@ def sua_phieu_ban(
     return phieu_nhap
 
 
-# Sửa thông tin đầu phiếu
 def sua_header_phieu_ban(
     phieu_ban,
     thoi_gian_tao=None,
-    ma_khach_hang=None,
+    ma_khach_hang=_KHONG_THAY_DOI,
     ten_khach_hang=None,
     ghi_chu=None
 ):
@@ -840,13 +872,41 @@ def sua_header_phieu_ban(
             thoi_gian_tao
         )
 
-    if ma_khach_hang is not None:
+    if ma_khach_hang is not _KHONG_THAY_DOI:
+
+        if (
+            isinstance(ma_khach_hang, str)
+            and not ma_khach_hang.strip()
+        ):
+
+            ma_khach_hang = None
 
         phieu_ban["ma_khach_hang"] = (
             ma_khach_hang
         )
 
-    if ten_khach_hang is not None:
+        if ma_khach_hang is not None:
+
+            khach_hang = tim_khach_hang(
+                ma_khach_hang
+            )
+
+            if khach_hang is None:
+
+                raise ValueError(
+                    f"Không tìm thấy khách hàng "
+                    f"'{ma_khach_hang}'."
+                )
+
+            phieu_ban["ten_khach_hang"] = (
+                khach_hang["ten_doi_tuong"]
+            )
+
+        else:
+
+            phieu_ban["ten_khach_hang"] = None
+
+    elif ten_khach_hang is not None:
 
         phieu_ban["ten_khach_hang"] = (
             ten_khach_hang
@@ -856,29 +916,26 @@ def sua_header_phieu_ban(
 
         phieu_ban["ghi_chu"] = ghi_chu
 
-    if any(value is not None for value in (
-        thoi_gian_tao,
-        ma_khach_hang,
-        ten_khach_hang,
-        ghi_chu
-    )):
-        danh_dau_phieu_da_thay_doi(phieu_ban)
+    if (
+        thoi_gian_tao is not None
+        or ma_khach_hang is not _KHONG_THAY_DOI
+        or ten_khach_hang is not None
+        or ghi_chu is not None
+    ):
+
+        danh_dau_phieu_da_thay_doi(
+            phieu_ban
+        )
 
     return phieu_ban
 
 
-# ============================================================
-# 11. THÊM / SỬA / XÓA DÒNG KHI SỬA PHIẾU
-# ============================================================
-
-# Thêm dòng mới
 def them_chi_tiet_phieu_ban(
     danh_sach_san_pham,
     phieu_ban,
     chi_tiet_moi
 ):
 
-    # Kiểm tra sản phẩm
     san_pham = tim_san_pham(
         danh_sach_san_pham,
         chi_tiet_moi["ma_san_pham"]
@@ -891,37 +948,33 @@ def them_chi_tiet_phieu_ban(
             f"'{chi_tiet_moi['ma_san_pham']}'"
         )
 
-    # Đảm bảo dòng chi tiết luôn có ghi chú
     if "ghi_chu" not in chi_tiet_moi:
         chi_tiet_moi["ghi_chu"] = ""
 
-    # Tính lại dòng
     tinh_lai_chi_tiet_ban(
         san_pham,
         chi_tiet_moi
     )
 
-    # Gán STT
     chi_tiet_moi["stt"] = (
         len(phieu_ban["chi_tiet"]) + 1
     )
 
-    # Thêm dòng
     phieu_ban["chi_tiet"].append(
         chi_tiet_moi
     )
 
-    # Cập nhật tổng
     cap_nhat_tong_thanh_tien(
         phieu_ban
     )
 
-    danh_dau_phieu_da_thay_doi(phieu_ban)
+    danh_dau_phieu_da_thay_doi(
+        phieu_ban
+    )
 
     return phieu_ban
 
 
-# Sửa một dòng chi tiết
 def sua_dong_chi_tiet_phieu_ban(
     danh_sach_san_pham,
     phieu_ban,
@@ -929,28 +982,24 @@ def sua_dong_chi_tiet_phieu_ban(
     thay_doi
 ):
 
-    # Lấy dòng cần sửa
     chi_tiet = (
         phieu_ban["chi_tiet"][vi_tri]
     )
 
-    # Áp dụng thay đổi
     chi_tiet.update(
         thay_doi
     )
 
-    # Nếu thay đổi dữ liệu ảnh hưởng đến giá vốn,
-    # giá vốn cũ không được giữ lại.
     if (
         "ma_san_pham" in thay_doi
         or "ma_kho" in thay_doi
         or "dvt_ban" in thay_doi
         or "so_luong" in thay_doi
     ):
+
         chi_tiet["don_gia_von"] = 0
         chi_tiet["thanh_tien_von"] = 0
 
-    # Tìm sản phẩm
     san_pham = tim_san_pham(
         danh_sach_san_pham,
         chi_tiet["ma_san_pham"]
@@ -963,33 +1012,30 @@ def sua_dong_chi_tiet_phieu_ban(
             f"'{chi_tiet['ma_san_pham']}'"
         )
 
-    # Tính lại dòng
     tinh_lai_chi_tiet_ban(
         san_pham,
         chi_tiet
     )
 
-    # Tính lại toàn bộ phiếu
     cap_nhat_tinh_toan_phieu_ban(
         danh_sach_san_pham,
         phieu_ban
     )
 
-    danh_dau_phieu_da_thay_doi(phieu_ban)
+    danh_dau_phieu_da_thay_doi(
+        phieu_ban
+    )
 
     return phieu_ban
 
 
-# Xóa một dòng chi tiết
 def xoa_chi_tiet_phieu_ban(
     phieu_ban,
     vi_tri
 ):
 
-    # Xóa dòng
     del phieu_ban["chi_tiet"][vi_tri]
 
-    # Đánh lại STT
     for stt, chi_tiet in enumerate(
         phieu_ban["chi_tiet"],
         start=1
@@ -997,21 +1043,21 @@ def xoa_chi_tiet_phieu_ban(
 
         chi_tiet["stt"] = stt
 
-    # Cập nhật tổng
     cap_nhat_tong_thanh_tien(
         phieu_ban
     )
 
-    danh_dau_phieu_da_thay_doi(phieu_ban)
+    danh_dau_phieu_da_thay_doi(
+        phieu_ban
+    )
 
     return phieu_ban
 
 
 # ============================================================
-# 12. XÁC NHẬN LƯU PHIẾU ĐÃ SỬA
+# 13. XÁC NHẬN LƯU PHIẾU ĐÃ SỬA
 # ============================================================
 
-# Xác nhận lưu phiếu sau khi sửa
 def xac_nhan_luu_phieu_ban(
     danh_sach_san_pham,
     danh_sach_ton_kho,
@@ -1019,14 +1065,12 @@ def xac_nhan_luu_phieu_ban(
     ham_tinh_gia_von=None
 ):
 
-    # Kiểm tra dữ liệu
     if not kiem_tra_du_lieu_phieu_ban(
         phieu_ban
     ):
 
         return None
 
-    # Tìm phiếu cũ
     phieu_cu = tim_phieu_ban(
         phieu_ban["ma_phieu"]
     )
@@ -1040,28 +1084,37 @@ def xac_nhan_luu_phieu_ban(
 
         return None
 
-    # Tính lại phiếu mới
     cap_nhat_tinh_toan_phieu_ban(
         danh_sach_san_pham,
         phieu_ban
     )
 
-    # Tạm thời hoàn tác phiếu cũ
+    # Hoàn tác dữ liệu cũ trước khi áp dụng dữ liệu mới.
     hoan_tac_phieu_ban_vao_kho(
         danh_sach_ton_kho,
         phieu_cu
     )
 
+    hoan_tac_cong_no_tu_gntt(
+        phieu_cu
+    )
+
+    if phieu_cu["ma_khach_hang"] is not None:
+
+        cap_nhat_tong_giao_dich(
+            phieu_cu["ma_khach_hang"],
+            -phieu_cu["tong_thanh_tien"]
+        )
+
     try:
 
-        # Kiểm tra tồn sau khi hoàn tác
         kiem_tra_ton_kho_phieu_ban(
             danh_sach_ton_kho,
             phieu_ban
         )
 
-        # Tính lại và đóng băng giá vốn của phiếu mới.
         if ham_tinh_gia_von is not None:
+
             ham_tinh_gia_von(
                 phieu_ban,
                 danh_sach_ton_kho
@@ -1071,24 +1124,51 @@ def xac_nhan_luu_phieu_ban(
                 phieu_ban
             )
 
-        # Áp dụng phiếu mới
         ap_dung_phieu_ban_vao_kho(
             danh_sach_ton_kho,
             phieu_ban
         )
 
+        phat_sinh_cong_no_tu_gntt(
+            phieu_ban
+        )
+
+        if phieu_ban["ma_khach_hang"] is not None:
+
+            cap_nhat_tong_giao_dich(
+                phieu_ban["ma_khach_hang"],
+                phieu_ban["tong_thanh_tien"]
+            )
+
     except Exception:
 
-        # Nếu phiếu mới không hợp lệ,
-        # khôi phục lại ảnh hưởng của phiếu cũ
+        # Khôi phục phiếu cũ.
         ap_dung_phieu_ban_vao_kho(
             danh_sach_ton_kho,
+            phieu_cu,
+            dung_gia_von_da_luu=True
+        )
+
+        phat_sinh_cong_no_tu_gntt(
             phieu_cu
         )
 
+        if phieu_cu["ma_khach_hang"] is not None:
+
+            cap_nhat_tong_giao_dich(
+                phieu_cu["ma_khach_hang"],
+                phieu_cu["tong_thanh_tien"]
+            )
+
+        if phieu_ban["ma_khach_hang"] is not None:
+
+            cap_nhat_tong_giao_dich(
+                phieu_ban["ma_khach_hang"],
+                -phieu_ban["tong_thanh_tien"]
+            )
+
         raise
 
-    # Tìm lại vị trí phiếu cũ
     for vi_tri, phieu in enumerate(
         danh_sach_phieu_ban
     ):
@@ -1097,12 +1177,13 @@ def xac_nhan_luu_phieu_ban(
             phieu_ban["ma_phieu"]
         ):
 
-            # Lưu bản nghiệp vụ, không lưu trạng thái User Form.
-            danh_sach_phieu_ban[
-                vi_tri
-            ] = tao_ban_luu_phieu(phieu_ban)
+            danh_sach_phieu_ban[vi_tri] = (
+                tao_ban_luu_phieu(phieu_ban)
+            )
 
-            dat_lai_trang_thai_phieu(phieu_ban)
+            dat_lai_trang_thai_phieu(
+                phieu_ban
+            )
 
             print(
                 "Sửa phiếu bán thành công"
@@ -1112,34 +1193,39 @@ def xac_nhan_luu_phieu_ban(
 
     return None
 
+
 # ============================================================
-# 13. HÀM TƯƠNG THÍCH CHO GNTT
+# 14. HÀM TƯƠNG THÍCH CHO GNTT
 # ============================================================
 
-# Tìm phiếu GNTT theo mã.
 def tim_phieu_gntt(ma_phieu):
-    return tim_phieu_ban(ma_phieu)
+
+    return tim_phieu_ban(
+        ma_phieu
+    )
 
 
-# Tạo phiếu GNTT mới.
-def tao_phieu_gntt(ma_phieu):
-    return tao_phieu_ban(ma_phieu)
+def tao_phieu_gntt(ma_phieu=None):
+
+    return tao_phieu_ban(
+        ma_phieu
+    )
 
 
-# Tải phiếu GNTT đã lưu thành bản nháp để chỉnh sửa.
 def load_phieu_gntt(ma_phieu):
+
     return load_phieu_ban(
         ma_phieu
     )
 
 
-# Lưu phiếu GNTT.
 def luu_phieu_gntt(
     danh_sach_san_pham,
     danh_sach_ton_kho,
     phieu,
     ham_tinh_gia_von=None
 ):
+
     return luu_phieu_ban(
         danh_sach_san_pham,
         danh_sach_ton_kho,
@@ -1148,13 +1234,13 @@ def luu_phieu_gntt(
     )
 
 
-# Xác nhận lưu phiếu GNTT đã sửa.
 def xac_nhan_luu_phieu_gntt(
     danh_sach_san_pham,
     danh_sach_ton_kho,
     phieu,
     ham_tinh_gia_von=None
 ):
+
     return xac_nhan_luu_phieu_ban(
         danh_sach_san_pham,
         danh_sach_ton_kho,

@@ -1,9 +1,19 @@
 from datetime import datetime
 from copy import deepcopy
 
-from thao_tac_danh_sach_san_pham import (lay_he_so_quy_doi, tim_san_pham)
+from san_pham import (lay_he_so_quy_doi, tim_san_pham)
 
-from thao_tac_kho import (ap_dung_phieu_nhap_vao_kho, hoan_tac_phieu_nhap_vao_kho)
+from kho import (ap_dung_phieu_nhap_vao_kho, hoan_tac_phieu_nhap_vao_kho)
+
+from nha_cung_cap import (tim_nha_cung_cap, cap_nhat_tong_giao_dich)
+
+from cong_no import (
+    phat_sinh_cong_no_tu_phieu_nhap,
+    hoan_tac_cong_no_tu_phieu_nhap
+)
+
+
+_KHONG_THAY_DOI = object()
 
 # ============================================================
 # 1. CẤU TRÚC DỮ LIỆU
@@ -14,7 +24,7 @@ phieu_nhap = {
     "ma_phieu_nhap": "",
     "ma_kho_nhap": "",
     "ngay_nhap": "",
-    "nha_cung_cap": "",
+    "nha_cung_cap": None,
     "ghi_chu": "",
     "chi_tiet": [],
     "tong_thanh_tien": 0
@@ -49,11 +59,36 @@ def tao_phieu_nhap(ma_phieu):
         "ma_phieu_nhap": ma_phieu,
         "ma_kho_nhap": "",
         "ngay_nhap": datetime.now(),
-        "nha_cung_cap": "",
+        "nha_cung_cap": None,
         "ghi_chu": "",
         "chi_tiet": [],
         "tong_thanh_tien": 0
     }
+
+def kiem_tra_nha_cung_cap(nha_cung_cap):
+
+    # Không nhập NCC → hợp lệ
+    if nha_cung_cap is None:
+        return True
+
+    # Nếu đã nhập thì phải là chuỗi
+    if not isinstance(nha_cung_cap, str):
+        raise ValueError(
+            "Nhà cung cấp phải là mã NCC hoặc để trống."
+        )
+
+    # Không chấp nhận chuỗi chỉ chứa khoảng trắng
+    if not nha_cung_cap.strip():
+        return True
+
+    # Có nhập mã NCC → phải tồn tại
+    if tim_nha_cung_cap(nha_cung_cap) is None:
+        raise ValueError(
+            f"Không tìm thấy nhà cung cấp "
+            f"'{nha_cung_cap}'."
+        )
+
+    return True
 
 
 # Tạo chi tiết phiếu nhập
@@ -294,8 +329,12 @@ def kiem_tra_du_lieu_phieu_nhap(phieu):
 
         return False
 
-    return True
+    # Kiểm tra nhà cung cấp
+    kiem_tra_nha_cung_cap(
+        phieu["nha_cung_cap"]
+    )
 
+    return True
 
 # Danh sách phiếu nhập
 danh_sach_phieu_nhap = []
@@ -316,26 +355,75 @@ def luu_phieu_nhap(
     if not kiem_tra_du_lieu_phieu_nhap(phieu):
         return False
 
-    # Tính lại toàn bộ phiếu trước khi lưu
+    # Tính lại toàn bộ phiếu trước khi tác động dữ liệu hệ thống
     cap_nhat_tinh_toan_phieu_nhap(
         danh_sach_san_pham,
         phieu
     )
 
-    # Lưu phiếu
-    danh_sach_phieu_nhap.append(phieu)
+    # Snapshot kho để có thể khôi phục chính xác nếu thao tác thất bại.
+    danh_sach_ton_kho_cu = deepcopy(
+        danh_sach_ton_kho
+    )
 
-    # Cập nhật tồn kho
-    ap_dung_phieu_nhap_vao_kho(
-        danh_sach_ton_kho,
-        danh_sach_kho,
+    cong_no_da_phat_sinh = False
+    giao_dich_ncc_da_cap_nhat = False
+
+    try:
+
+        # Cập nhật tồn kho trước khi đưa phiếu vào danh sách chính thức
+        ap_dung_phieu_nhap_vao_kho(
+            danh_sach_ton_kho,
+            danh_sach_kho,
+            phieu
+        )
+
+        # Phát sinh công nợ nếu có nhà cung cấp
+        phat_sinh_cong_no_tu_phieu_nhap(
+            phieu
+        )
+
+        cong_no_da_phat_sinh = True
+
+        # Cập nhật tổng giao dịch của NCC nếu có
+        if phieu["nha_cung_cap"] is not None:
+            cap_nhat_tong_giao_dich(
+                phieu["nha_cung_cap"],
+                phieu["tong_thanh_tien"]
+            )
+
+            giao_dich_ncc_da_cap_nhat = True
+
+    except Exception:
+
+        # Hoàn tác tổng giao dịch NCC nếu bước cập nhật đã thành công.
+        if giao_dich_ncc_da_cap_nhat:
+            cap_nhat_tong_giao_dich(
+                phieu["nha_cung_cap"],
+                -phieu["tong_thanh_tien"]
+            )
+
+        # Hoàn tác công nợ nếu bước phát sinh đã thành công.
+        if cong_no_da_phat_sinh:
+            hoan_tac_cong_no_tu_phieu_nhap(
+                phieu
+            )
+
+        # Khôi phục đúng trạng thái tồn kho trước khi lưu.
+        danh_sach_ton_kho[:] = deepcopy(
+            danh_sach_ton_kho_cu
+        )
+
+        raise
+
+    # Chỉ đưa phiếu vào danh sách chính thức sau khi các tác động thành công
+    danh_sach_phieu_nhap.append(
         phieu
     )
 
     print("Lưu phiếu nhập thành công")
 
     return True
-
 
 # ============================================================
 # 7. SỬA PHIẾU NHẬP
@@ -354,14 +442,14 @@ def sua_phieu_nhap(phieu_can_sua):
 def sua_header_phieu_nhap(
     phieu_nhap,
     ngay_nhap=None,
-    nha_cung_cap=None,
+    nha_cung_cap=_KHONG_THAY_DOI,
     ghi_chu=None
 ):
 
     if ngay_nhap is not None:
         phieu_nhap["ngay_nhap"] = ngay_nhap
 
-    if nha_cung_cap is not None:
+    if nha_cung_cap is not _KHONG_THAY_DOI:
         phieu_nhap["nha_cung_cap"] = nha_cung_cap
 
     if ghi_chu is not None:
@@ -482,13 +570,13 @@ def xac_nhan_luu(
     danh_sach_kho,
     phieu_nhap
 ):
-    # Kiểm tra phiếu
+    # Kiểm tra phiếu đang sửa
     if not kiem_tra_du_lieu_phieu_nhap(
         phieu_nhap
     ):
         return None
 
-    # Tính lại toàn bộ phiếu trước khi lưu
+    # Tính lại toàn bộ phiếu trước khi tác động dữ liệu hệ thống
     cap_nhat_tinh_toan_phieu_nhap(
         danh_sach_san_pham,
         phieu_nhap
@@ -500,23 +588,75 @@ def xac_nhan_luu(
     ):
         if (
             phieu_cu["ma_phieu_nhap"]
-            == phieu_nhap["ma_phieu_nhap"]
+            != phieu_nhap["ma_phieu_nhap"]
         ):
-            # Hoàn tác ảnh hưởng của phiếu cũ
+            continue
+
+        # Snapshot kho để khôi phục chính xác nếu phiếu mới lỗi.
+        danh_sach_ton_kho_cu = deepcopy(
+            danh_sach_ton_kho
+        )
+
+        cong_no_cu_da_hoan_tac = False
+        giao_dich_ncc_cu_da_hoan_tac = False
+        cong_no_moi_da_phat_sinh = False
+        giao_dich_ncc_moi_da_cap_nhat = False
+
+        try:
+
+            # --------------------------------------------------------
+            # 1. Hoàn tác toàn bộ ảnh hưởng của phiếu cũ
+            # --------------------------------------------------------
+
             hoan_tac_phieu_nhap_vao_kho(
                 danh_sach_ton_kho,
                 danh_sach_kho,
                 phieu_cu
             )
 
-            # Áp dụng ảnh hưởng của phiếu mới
+            hoan_tac_cong_no_tu_phieu_nhap(
+                phieu_cu
+            )
+
+            cong_no_cu_da_hoan_tac = True
+
+            if phieu_cu["nha_cung_cap"] is not None:
+                cap_nhat_tong_giao_dich(
+                    phieu_cu["nha_cung_cap"],
+                    -phieu_cu["tong_thanh_tien"]
+                )
+
+                giao_dich_ncc_cu_da_hoan_tac = True
+
+            # --------------------------------------------------------
+            # 2. Áp dụng toàn bộ ảnh hưởng của phiếu mới
+            # --------------------------------------------------------
+
             ap_dung_phieu_nhap_vao_kho(
                 danh_sach_ton_kho,
                 danh_sach_kho,
                 phieu_nhap
             )
 
-            # Thay thế phiếu cũ bằng phiếu mới
+            phat_sinh_cong_no_tu_phieu_nhap(
+                phieu_nhap
+            )
+
+            cong_no_moi_da_phat_sinh = True
+
+            if phieu_nhap["nha_cung_cap"] is not None:
+                cap_nhat_tong_giao_dich(
+                    phieu_nhap["nha_cung_cap"],
+                    phieu_nhap["tong_thanh_tien"]
+                )
+
+                giao_dich_ncc_moi_da_cap_nhat = True
+
+            # --------------------------------------------------------
+            # 3. Chỉ thay thế phiếu chính thức sau khi mọi tác động
+            #    đã thành công.
+            # --------------------------------------------------------
+
             danh_sach_phieu_nhap[vi_tri] = (
                 phieu_nhap
             )
@@ -525,8 +665,50 @@ def xac_nhan_luu(
 
             return phieu_nhap
 
+        except Exception:
+
+            # --------------------------------------------------------
+            # 4. Hoàn tác công nợ và tổng giao dịch của phiếu mới
+            #    nếu các bước tương ứng đã thành công.
+            # --------------------------------------------------------
+
+            if giao_dich_ncc_moi_da_cap_nhat:
+                cap_nhat_tong_giao_dich(
+                    phieu_nhap["nha_cung_cap"],
+                    -phieu_nhap["tong_thanh_tien"]
+                )
+
+            if cong_no_moi_da_phat_sinh:
+                hoan_tac_cong_no_tu_phieu_nhap(
+                    phieu_nhap
+                )
+
+            # --------------------------------------------------------
+            # 5. Khôi phục tồn kho chính xác về snapshot ban đầu.
+            # --------------------------------------------------------
+
+            danh_sach_ton_kho[:] = deepcopy(
+                danh_sach_ton_kho_cu
+            )
+
+            # --------------------------------------------------------
+            # 6. Khôi phục công nợ và tổng giao dịch của phiếu cũ.
+            # --------------------------------------------------------
+
+            if cong_no_cu_da_hoan_tac:
+                phat_sinh_cong_no_tu_phieu_nhap(
+                    phieu_cu
+                )
+
+            if giao_dich_ncc_cu_da_hoan_tac:
+                cap_nhat_tong_giao_dich(
+                    phieu_cu["nha_cung_cap"],
+                    phieu_cu["tong_thanh_tien"]
+                )
+
+            raise
+
     print("Không tìm thấy phiếu nhập cần sửa")
 
     return None
-
 
